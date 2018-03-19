@@ -1,0 +1,226 @@
+---
+title: "HW2_Mohapatra"
+author: "Tanisha Mohapatra"
+date: "March 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(texreg)
+library(pander)
+library(stargazer)
+```
+
+##Problem 1
+```{r Problem 1 Section 1}
+sprinters <- read.csv("sprinters.csv")
+#Create a matrix X comprising: column of ones, col of variable year, col of variable women
+ones <- matrix(1:1, nrow = 42, ncol = 1)
+selected <- as.matrix(select(sprinters,year,women))
+X <- cbind(ones, selected)
+#Create a matrix Y comprised of a single column made of var finish
+Y <- matrix(sprinters$finish, nrow = 42, ncol = 1)
+#Compute the value of b=(X'X)^-1 X'y
+b <- (solve(t(X)%*%X))%*%t(X)%*%Y
+b
+```
+
+
+- The vector b = (34.96, -0.013, 1.09) consists of the ordinary least squares estimates of the \beta coefficients which minimizes the sum of squared errors. The \beta0 coefficient, or the intercept is 34.96004, and the \beta1 estimate for year is -0.0126, and the \beta2 estimate for women is 1.09. Since this is a linear model, the interpretations for these \beta coefficients is as follows:
+For a 1 unit increase in the year of the competition, all else constant, we can expect the finishing time in seconds for the meter sprint to go down by 0.013 seconds. Practically, this implies that later years had lower finishing times, i.e., the finishing times got better and better in later years.
+Note that women is a binary variable, with the value being 1 if the tiome is a woman's best, and the value being 0 if the time is a man's best. This means that all else constant, as the woman variable goes from 0 to 1, the finishing time registers an inrease of 1.09 seconds, i.e., when women are the best finishers, the finishing time is expected to increase. 
+
+```{r Problem 1 Section 2.1, results="asis"}
+#Use lm to run a regression of finish on year and women
+#Compare results with Section 1
+reg <- lm(finish ~ year + women, data = sprinters)
+stargazer(reg, type = "html")
+```
+
+
+- The basic regression output tells us that, all else constant, for every additional year, the finish time decreases by about 0.013 seconds, and all else constant, if the gender of the best finisher was female, the finish time increases by 1.09 seconds.
+
+- Comparing the regression results to Problem 1 Section 1, notice that the numbers in the result matrix for Problem 1 show up as the intercept and coefficients in the regression output. This is because the calculation in Problem 1 is actually the equation for the OLS estimate in matrix form.
+
+```{r Problem 1 Section 2.2}
+#Make a graph with data, regression line
+xhyp <- data.frame(year = sprinters$year, finish = sprinters$finish, women = sprinters$women)
+predicted <- predict(reg, newdata = xhyp, interval = "confidence")
+predicted_plot <- cbind(predicted, xhyp)
+ggplot(predicted_plot, aes(x = year+women, y = finish)) +
+  geom_point(aes(color = factor(women, labels = c ("Male", "Female")))) +
+  geom_smooth(method = "lm", se = TRUE) + 
+  ggtitle("Marathon Best Finish Times by Year and Gender") + 
+  labs(x = "Year and Gender", y = "Best Finish Time (seconds)", color = "Gender") +
+  theme_bw()
+```
+
+
+- The code above also generates regression plots capturing the relationship between the finish time and year and gender. 
+
+```{r Problem 1 Section 2.3, results="asis"}
+#Interaction between women and year
+int_reg <- lm(finish ~ women*year, data = sprinters)
+stargazer(int_reg, type = "html")
+```
+
+
+- Now adding an interaction effect for year and gender, the second regression (int_reg) gives us more information. The stand alone \betas capture a conditional relationship (the impact of the variable is conditional on what the value of the other variables are), e.g., here, if the year is held to be 0, the effect of gender on finish time is such that, when the best finisher is a woman, the finish time increases by 12.52 seconds. Similarly, if we hold women to be 0, the effect of year on the finish time is such that for an additional increase in year, the finish time is decreasing by 0.01 seconds. For the interaction term, in general, for any positive X2, a unit increase in X1 produces a (\beta1 + X2\beta3) unit increase in Y. 
+
+```{r Problem 1 Section 2.4, warning=FALSE, message=FALSE}
+#new regression plot
+int_predicted <- predict(int_reg, newdata = xhyp, interval = "confidence")
+int_predictedplot <- as.data.frame(cbind(int_predicted, xhyp)) #converting to data frame while binding to avoid atmoic vector error
+
+ggplot(int_predictedplot, aes(x = year,women, y = int_predictedplot$fit, group = women, ymin = lwr, ymax =  upr)) +
+  geom_line() +
+  geom_point(aes(x = year,women, y = finish, color = factor(women, labels = c ("Male", "Female")))) +
+  geom_ribbon(alpha = .3)+
+  ggtitle("100m Best Finish Times by Year and Gender (Interaction)") + 
+  labs(x = "Year and Gender", y = "Best Finish Time (seconds)", color = "Gender") +
+  theme_bw()
+```
+
+
+- The second plot captures an interaction effect between year and gender, with a fit for each level of woman (0 = male, 1= female).
+
+```{r Problem 1 Section 3.1}
+#Use predict to calculate estimate finish time for men and women in 2001; calculate the 95% confidence interval
+predict(reg, newdata = data_frame(year = 2001, women = c(0,1)), interval = "confidence", level = 0.95) #no interaction effects
+predict(int_reg, newdata = data_frame(year = 2001, women = c(0,1)), interval = "confidence", level = 0.95) #with interaction effects
+```
+
+
+- Using these models, we can try to predict the expected finishing time for men and women in 2001: 
+Without interaction effects, the best finishing time if the best finsher is a man is expected to be 9.72 seconds, and if a woman, is expected to be 10.82 seconds.
+With interaction effects, the time stands at 9.80 seconds for men and 10.68 seconds for women.
+
+```{r Problem 1 Section 3.2}
+#Now Predict for 2156; calculate 95% confidence interval
+predict(reg, newdata = data_frame(year = 2156, women = c(0,1)), interval = "confidence", level = 0.95) #no interaction effects
+predict(int_reg, newdata = data_frame(year = 2156, women = c(0,1)), interval = "confidence", level = 0.95) #with interaction effects
+```
+
+
+- For 2056, the prediction without interaction effects are as follows:
+Men: 7.78 seconds
+Women: 8.87 seconds
+If we use an interaction effect, 
+Men: 8.098 seconds
+Women: 8.07 seonds.
+
+```{r Problem 1 Section 3.3}
+#Is the model being overworked -- check for 3000 CE
+summary(sprinters$year)
+predict(reg, newdata = data_frame(year = 3000, women = c(0,1)), interval = "confidence", level = 0.95) #no interaction effects
+predict(int_reg, newdata = data_frame(year = 3000, women = c(0,1)), interval = "confidence", level = 0.95) #with interaction effects
+```
+
+
+- Can we trust these predictions? 
+Note that the time points for the actual data stop at 2004. The year 2056 is much beyond the sample range and there is a possibility that the model is being over exterted beyond sufficient data backing -- a way to validate these doubts is to check the predictions for the year 3000 CE: with as well as without interaction effects, both predicted times for both genders are negative! This shows that the model is being overworked. 
+
+##Problem 2
+```{r Problem 2 Section 4.1}
+#Load and Format
+data("anscombe")
+anscombe2 <- anscombe %>%
+    mutate(obs = row_number()) %>%
+    gather(variable_dataset, value, - obs) %>%
+    separate(variable_dataset, c("variable", "dataset"), sep = 1L) %>%
+    spread(variable, value) %>%
+    arrange(dataset, obs)
+#Mean, SD and Correlation between X & Y for each dataset
+anscombe2 %>% 
+  group_by(dataset) %>%
+  summarize(xbar = mean(x),
+            ybar = mean(y),
+            SDx = sd(x),
+            SDy = sd(y),
+            Correlation = cor(x, y))
+```
+
+
+- The code above will generate the mean, standard deviation, and correlation between x & y for each dataset. Note the level of similarity in these parameters.
+
+```{r Problem 2 Section 4.2, results="asis"}
+#Linear regression between x and y for each dataset
+regression1 <- lm(y~x, data = filter(anscombe2, dataset == 1))
+regression2 <- lm(y~x, data = filter(anscombe2, dataset == 2))
+regression3 <- lm(y~x, data = filter(anscombe2, dataset == 3))
+regression4 <- lm(y~x, data = filter(anscombe2, dataset == 4))
+
+stargazer(regression1, type = "html")
+
+stargazer(regression2, type = "html")
+
+stargazer(regression3, type = "html")
+
+stargazer(regression4, type = "html")
+```
+
+
+- Since the datasets exhibit a high degree of similarity for each of these parameters, having the same means and standard deviations for X and Y, and the same correlation coefficient, in addition to having very similar regression intercepts and coefficients, I expect the datasets to look very similar, in fact almost identical. 
+
+```{r Problem 2 Section 4.3}
+#Plot scatterplots and regression lines
+ggplot(anscombe2, aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~ dataset, nrow = 2) +
+  theme_bw()
+```
+
+
+- Subsequently, plotting the data proves this intuition wrong. The plot points in each of the datasets are distributed very differently from each other, but in a manner that can explain why the parameter estimates above were so identical, thus resulting in very simiar lines of best fit (regression lines) e.g., dataset 4 is heavily influenced by the outlier point. 
+
+##Problem 3
+
+For my final project, I will be studying the 2014 General Elections in India and assessing the relative impact of issue based politcs and identity politics in determining the electoral outcome. The case is interesting because in its immediate aftermath, it was cited as a victory for the BJP based entirely on the merit of their aspirational platform, as opposed to identity politics. Interestingly, the party has a history of a distinct religious leaning, has several in power who have a reputation for communal pulls, and identity/communal incidents have been rampant in news cycles since the party came into power; whereas the economic/policy verdict is ambiguous at best. Through this project, I hope to understand the role of political messaging and how it impacts voters, more importantly, the role of a combined targeted economic message at a crucial identity based vote bank. 
+
+####Data Description
+
+Describe your data. Do you have it in a form that you can load it into R? What variables does it include? What are their descriptions and types?
+
+- I will be using the “India Winter 2014 Survey," made available for my access through Cornell University’s Roper Center. The survey was sponsored by the Pew Research Center and was compiled by Princeton Survey Research Associates International. I have the original file in a format that can be loaded into R, but will be using only a subset of it. 
+
+- The dataset is a survey conducted in the fifteen most populous states in India, which are home to about 91% of the Indian population, using urban settlements and rural districts as sampling units, with a sample size of 2464 adult residents. The survey comprised questions addressing 138 variables spanning issues like national economics, politics, law and order, morality, foreign relations, security, etc., and was conducted through in person interviews in local languages. All variables are categorical, and either consist of options that are selected by the respondant (e.g., party preference), or involve a rating scale (e.g., On a scale of 1-5 how bad do you think inflation levels are?). 
+
+####Data Distribution
+
+Describe, in as precise terms as possible, the distribution of the outcome varaible you plan to use. If you have the data in hand, a histogram would be ideal; if you do not, give a verbal description of what you expect the distribution to look like. Be sure to indicate if the data are continuous or categorical.
+
+- My outcome variable will be a categorical variable consisting of the respondant's party of choice for the national election, either the Bharataiya Janata Party (BJP) or the Indian National Congress (INC) or any other party. Effectively, I will be coding this as a binary variable with value 1 if the party of choice is the BJP or a coalition partner in the winning coalition (NDA) and 0 for any other party. Since the coalition led by the BJP did ahieve a majority (winning about 61% of Lower House seats, with a popular mandate hovering around 35% in a multi-party system), I expect the data to be skewed in their favor, nonetheless, the data has a decent representation for other parties. 
+
+- Attached below is a bar chart for the discrete binary variable called "bjp" that I had recoded for a preliminary analysis. 
+
+```{r Problem 3 Section 5.1}
+library(haven)
+library(car)
+BJP <- read_sav("Pew_ind_data.sav")
+BJP <- BJP %>%  
+  mutate(bjp = recode(QIND5, "c(2,3,4, 8,9)= 0")) 
+BJP$bjp <- as.factor(BJP$bjp)
+
+ggplot(BJP, aes(x = bjp)) +
+  geom_bar(aes(x = BJP$bjp, fill = factor(bjp, labels = c ("Others", "BJP")))) +
+  ggtitle("Voting Preference Distribution") +
+  labs(x = "Party Preference", y = "Count", fill = "Party Preference") +
+  theme_bw()
+```
+
+####Analysis Challenges
+
+What challenges would your data pose for analysis by least squares regression? Be sure to discuss any potential violations of the assumptions of the GaussMarkov theorem, as well as any other complications or difficulties you see in modeling your data.
+
+- The Gauss Markov theorem states:
+In a linear model in which the errors have expectation zero and are uncorrelated and have equal variances, a best linear unbiased estimator of the coefficients is given by the least-squares estimator. 
+
+- The biggest challenges would be to ensure no correlation between all the independent variables, since public perception of a party with regard to one issue can easily carry on to another issue, and steering away from omitted variable bias.
+
+- A regular linear model using an OLS estimate would be inappropriate for this analysis because all my variables are categorical, either binary or multicategory. I'll therefore be using a logistic model to account for the nature of my variables. 
+
